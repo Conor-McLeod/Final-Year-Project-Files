@@ -1,0 +1,171 @@
+<!-- <root xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="/Users/conormcleod/Final-Year-Project/Rosetta-Work/Other/rosettascripts.xsd" /> -->
+
+<ROSETTASCRIPTS>
+
+    <RESIDUE_SELECTORS>
+        <ResiduePropertySelector name="sugar" properties="CARBOHYDRATE"/>
+        <Not name="protein" selector="sugar"/>
+        <Not name="other" selector="sugar"/>
+
+        <InterfaceByVector name="strict_interface" grp1_selector="sugar" grp2_selector="protein"/>
+        <PrimarySequenceNeighborhood name="interface" selector="strict_interface"/>
+
+        <ResidueName name="ala_gly" residue_name3="ALA,GLY" />
+        <Not name="not_ala_gly" selector="ala_gly" />
+
+        <And name="boltz_subset" selectors="not_ala_gly,interface,other" />
+
+        <ResiduePDBInfoHasLabel name='labeled_interface' property='interface' />
+        <ResiduePDBInfoHasLabel name='labeled_HBNet' property='HBNet' />
+        <ResiduePDBInfoHasLabel name='labeled_seed' property='MUTATED' />
+
+    </RESIDUE_SELECTORS>
+
+    <TASKOPERATIONS>
+        <OperateOnResidueSubset name="keep_other" selector="other">
+            <PreventRepackingRLT />
+        </OperateOnResidueSubset>
+    </TASKOPERATIONS>
+
+    <SCOREFXNS>
+    </SCOREFXNS>
+
+    <MOVERS>
+        <AtomTree name="set_foldtree" docking_ft="1" />
+        <GlycanSampler name="sugar_sampler" kt="2" rounds="10" final_min="1" pymol_movie="0" randomize_torsions="1" pack_distance="6" tree_based_min_pack="1" use_conformer_probs="0" min_rings="0" shear="1" match_sampling_of_modeler="0" inner_bb_cycles="1" root_populations_only="0" />
+        <FastRelax name='relax'/>
+	 	DeleteRegionMover name="no_sugar" residue_selector="sugar" rechain="1"/>
+        <AddResidueLabel name="interface_label" residue_selector="boltz_subset" label="interface" />
+        <Translate name="no_sugar" chain="A" distribution="uniform" angstroms="1000" cycles="2"/>
+        StartFrom name="no_sugar" chain="A" use_nbr="0">
+            Coordinates x="100000" y="100000" z="100000" />
+        /StartFrom>
+    </MOVERS>
+
+    <FILTERS>
+        <Ddg name="ddg" confidence="0" repeats='1'/>
+        <ShapeComplementarity name="Sc" confidence="0"/>
+        <Sasa name="SASA" confidence="0"/>
+        <Sasa name="SASA_hydrophobic" confidence="0" hydrophobic='1'/>
+        <Sasa name="SASA_polar" confidence="0" polar='1'/>
+
+
+        <ResInInterface name="InterfaceRes" confidence="0"/>
+        <TotalSasa name="sugar_SASA" task_operations="keep_other" confidence="0"/>
+        <TotalSasa name="sugar_SASA_hydrophobic" task_operations="keep_other" confidence="0" hydrophobic='1' />
+        <TotalSasa name="sugar_SASA_polar" task_operations="keep_other" confidence="0" polar='1' />
+
+
+        <BuriedUnsatHbonds name='unsat' confidence='0' use_vsasa='0'/>
+        <BuriedUnsatHbonds2 name='unsat2' confidence='0' />
+        <BuriedUnsatHbonds name='unsat_I' confidence='0' use_ddG_style='1' jump_number='1' use_vsasa='0'/>
+        MoveBeforeFilter name="unsat_no_sugar" mover="no_sugar" mover_name="no_sugar" filter="unsat1_2" filter_name="unsat1_2" confidence="0" />
+
+
+
+        <TaskAwareScoreType name="fa_sol_" score_type="fa_sol" mode="total" confidence="0"/>
+        <MoveBeforeFilter name="fa_sol_apart" mover="no_sugar" mover_name="no_sugar" filter="fa_sol_" filter_name="fa_sol_" confidence="0" />
+
+        <CalculatorFilter name="fa_sol_d" equation="E_complex - E_apart" confidence="0">
+            <Var name="E_complex" filter="fa_sol_" />
+            <Var name="E_apart" filter="fa_sol_apart" />
+              Value name="kT" value="0.6" />
+        </CalculatorFilter>
+
+
+
+
+         RotamerBoltzmannWeight2 name="rot_boltz_sugar" residue_selector="boltz_subset" score_type="MEAN_PROBABILITY" confidence="0"/>
+         RotamerBoltzmannWeight2 name="rot_boltz_ddg" residue_selector="boltz_subset" score_type="MODIFIED_DDG" confidence="0"/>
+        <RotamerBoltzmannWeight2 name="rot_interface" residue_selector="labeled_interface" score_type="MEAN_PROBABILITY" confidence="0"/>
+        <RotamerBoltzmannWeight2 name="rot_HBNet" residue_selector="labeled_HBNet" score_type="MEAN_PROBABILITY" confidence="0"/>
+        <RotamerBoltzmannWeight2 name="rot_seed" residue_selector="labeled_seed" score_type="MEAN_PROBABILITY" confidence="0"/>
+         
+         MoveBeforeFilter name="rot_boltz_no_sugar" mover="no_sugar" mover_name="no_sugar" filter="rot_boltz" filter_name="rot_boltz" confidence="0" />
+
+         CalculatorFilter name="rot_boltz_binding" equation="E_bound - E_unbound" confidence="0">
+              Var name="E_bound" filter="rot_boltz" />
+              Var name="E_unbound" filter="rot_boltz_no_sugar" />
+              Value name="kT" value="0.6" />
+        /CalculatorFilter>
+
+
+        Holes name="hole_around" confidence="0" residue_selector="sugar" normalize_per_atom="1" exclude_bb_atoms="1" normalize_per_residue="1" />
+        -holes:dalphaball /home/tm21372/Rosetta/main/source/external/DAlpahBall/DAlphaBall.gcc
+        <ContactMolecularSurface name="contact_surf" quick="0" use_rosetta_radii="0" apolar_target="0" target_selector="sugar" binder_selector='other' confidence="0" />
+        <HbondsToResidue name="Interface_hbond_count" partners="1" backbone="True" sidechain="True" from_same_chain="False" residue="1" confidence="0"/>
+
+
+
+        <TaskAwareScoreType name="sugar_fa_atr" score_type="fa_atr" mode="total" confidence="0"/>
+        <TaskAwareScoreType name="sugar_fa_rep" score_type="fa_rep" mode="total" confidence="0"/>
+        <TaskAwareScoreType name="sugar_hbond_sc" score_type="hbond_sc" mode="total" confidence="0"/>
+        <TaskAwareScoreType name="sugar_hbond_bb_sc" score_type="hbond_bb_sc" mode="total" confidence="0"/>
+        <TaskAwareScoreType name="sugar_hbond_lr_bb" score_type="hbond_lr_bb" mode="total" confidence="0"/>
+        <TaskAwareScoreType name="sugar_hbond_sr_bb" score_type="hbond_sr_bb" mode="total" confidence="0"/>
+        <TaskAwareScoreType name="sugar_fa_sol" score_type="fa_sol" mode="total" confidence="0"/>
+        <TaskAwareScoreType name="sugar_lk_ball_wtd" score_type="lk_ball_wtd" mode="total" confidence="0"/>
+        <TaskAwareScoreType name="sugar_fa_elec" score_type="fa_elec" mode="total" confidence="0"/>
+
+        <Ddg name="ddg_fa_atr" confidence="0" repeats='1' filter='sugar_fa_atr'/>
+        <Ddg name="ddg_fa_rep" confidence="0" repeats='1' filter='sugar_fa_rep'/>
+        <Ddg name="ddg_fa_elec" confidence="0" repeats='1' filter='sugar_fa_elec'/>
+        <Ddg name="ddg_hbond_sc" confidence="0" repeats='1' filter='sugar_hbond_sc'/>
+        <Ddg name="ddg_hbond_bb_sc" confidence="0" repeats='1' filter='sugar_hbond_bb_sc'/>
+        <Ddg name="ddg_hbond_lr_bb" confidence="0" repeats='1' filter='sugar_hbond_lr_bb'/>
+        <Ddg name="ddg_hbond_sr_bb" confidence="0" repeats='1' filter='sugar_hbond_sr_bb'/>
+        <Ddg name="ddg_fa_sol" confidence="0" repeats='1' filter='sugar_fa_sol'/>
+        <Ddg name="ddg_lk_ball_wtd" confidence="0" repeats='1' filter='sugar_lk_ball_wtd'/>
+
+        <Ddg name="d_rot_interface" confidence="0" repeats='1' filter='rot_interface'/>
+
+
+    </FILTERS>
+
+    <PROTOCOLS>
+        <Add mover_name="set_foldtree"/>
+        <Add mover="relax"/>
+        
+		Add mover="interface_label"/>
+
+	 Add filter="unsat"/>
+	 Add filter="unsat2"/>
+	 Add filter="unsat_I"/>
+
+        <Add filter="Sc"/>
+        <Add filter="SASA" />
+        <Add filter="SASA_hydrophobic" />
+        <Add filter="SASA_polar" />
+        <Add filter="sugar_SASA" />
+        <Add filter="sugar_SASA_hydrophobic" />
+        <Add filter="sugar_SASA_polar" />
+        <Add filter="InterfaceRes"/>
+
+         Add filter="rot_interface"/>
+         Add filter="rot_HBNet"/>
+         Add filter="rot_seed"/>
+
+         Add mover="no_sugar"/>
+         Add filter="rot_boltz_no_sugar"/>
+         Add filter="rot_boltz_binding"/>
+        Add filter="hole_around"/>
+        <Add filter="contact_surf"/>
+        <Add filter="Interface_hbond_count"/>
+
+        Add filter="ddg_fa_atr"/>
+        Add filter="ddg_fa_rep"/>
+        Add filter="ddg_fa_elec"/>
+        Add filter="ddg_hbond_sc"/>
+        Add filter="ddg_hbond_bb_sc"/>
+        Add filter="ddg_hbond_lr_bb"/>
+        Add filter="ddg_hbond_sr_bb"/>
+        Add filter="ddg_fa_sol"/>
+        Add filter="ddg_lk_ball_wtd"/>
+
+        Add filter="d_rot_interface"/>
+        <Add filter="ddg"/>
+    </PROTOCOLS>
+    <OUTPUT />
+
+</ROSETTASCRIPTS>
+ 
